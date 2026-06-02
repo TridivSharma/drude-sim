@@ -6,7 +6,7 @@
 
 // wire stuff
 #define N_E 2000
-#define V 25
+#define V 10
 #define R_CU 6
 #define R_E 2
 #define GAP 8
@@ -29,7 +29,7 @@ Vector2 a[N_E] = {0};
 #define LR_COLS (THICCNESS/(2*R_CU + GAP))
 #define LR_ROWS (OUTER_HEIGHT/(2*R_CU + GAP)) 
 #define TB_COLS (INNER_WIDTH/(2*R_CU + GAP))
-#define TB_ROWS (THICCNESS/(2*R_CU + GAP)) 
+#define TB_ROWS (THICCNESS/(2*R_CU + GAP))  
 
 Vector2 top[TB_ROWS][TB_COLS];
 Vector2 bottom[TB_ROWS][TB_COLS];
@@ -43,7 +43,7 @@ Rectangle inner_wire = {OFFSET + THICCNESS, OFFSET + THICCNESS, INNER_WIDTH, INN
 //E field
 
 Vector2 E[1080][1920] = {0};
-#define E_field 10
+#define E_field 25
 
 // Initialize
 
@@ -57,7 +57,7 @@ void Init_e() {
 
 	for (int i=0;i<N_E;i++) {
 		v[i].x = V;
-		v[i].y = -10;
+		v[i].y = 0;
 	}
 
 	for (int i=0; i<N_E; i++) {
@@ -154,12 +154,15 @@ void Compute_E() {
 // Collision logic:
 
 int collided_with_cu = 0;
-int collided_with_inner_wire = 0;
-int collided_with_outer_wire = 0;
+
+int colliding_with_cu = 0;
+
+int colliding_with_inner_wire = 0;
+int colliding_with_outer_wire = 0;
 
 double ambm_dist(int ex, int ey, int cu_x, int cu_y) {		// alpha max beta min dist trick
 
-	float alpha = 1.0f;
+	float alpha = 1.1f;
 	float beta = 0.3f;
 
 	return alpha*fmax(abs(ex - cu_x), abs(ey - cu_y)) + beta*fmin(abs(ex-cu_x),abs(ey-cu_y)); 
@@ -179,7 +182,12 @@ what we instead will do is to generate the positions from the electron position 
 
 So we have equations of the centers, we need some way to find which of those points lie within the octogonal_dist region.
 
-hm, if we look at bottom:
+Can't think of anything clever aaghhhhhh. Okay we just brute force, we'll construct some square matrix centered at {e[i].x, e[i].y} this matrix
+will be like a sort of lattice of coordinates such that lattice[i][j+1], lattice[i+1][j], represent coords at some distance from each other,
+which will not be a unit/1px, it will be some bigger number. We check if coord = any Cu center coord by using the arithmetic progression formula 
+that we'll cook up, if matches then we know we have to check for a collision via octagonal_dist.
+
+OR hm, if we look at bottom:
 
 bottom[i][j].x = 228 + 20*j = 8 mod 20
 bottom[i][j].y = 868 + 20*j also 8 mod 20
@@ -188,7 +196,7 @@ So if we are at {ex, ey}, we just want to find the nearest {x,y} such that {x,y}
 {ex,ey} mod 20, we'll get some numbers that will be either more or less than 8, I think we just go for the 4 nearest {x,y} such that they
  are both 8 mod 20.
 
-We get those by either adding or subtracting from (ex,ey) until we reach 8 mod 20.
+We get those by either adding or subtracting from (ex,ey) until we reach 8 mod 20, oh actually I think we only just need to calculate one of these.
 */
 
 struct NearbyAtoms {
@@ -197,208 +205,230 @@ struct NearbyAtoms {
 
 struct NearbyAtoms NearestCu(int ex, int ey) {
 
-    struct NearbyAtoms coords;
+	struct NearbyAtoms coords;
 
-    float x_offset = 0;
-    float y_offset = 0;
+	if ( (ex>=OFFSET + THICCNESS && ex<=1920-(OFFSET+THICCNESS) )&&
+		(ey>=OFFSET+THICCNESS && ey <=1080-(OFFSET+THICCNESS)) ) {
 
-    if (ex < OFFSET + THICCNESS) {
+		for (int j=0;j<4;j++) {
+			coords.points[j] = (Vector2){-1.0f,-1.0f};
+		}
 
-        x_offset = OFFSET;
-        y_offset = OFFSET;
-    } 
-    else if (ex > OFFSET + THICCNESS + INNER_WIDTH) {
+		return coords;
+		
+	}
+	
+	else {
 
-        x_offset = OFFSET + THICCNESS + INNER_WIDTH;
-        y_offset = OFFSET;
-    } 
-    else if (ey < OFFSET + THICCNESS) {
- 
-        x_offset = OFFSET + THICCNESS;
-        y_offset = OFFSET;
-    } 
-    else {
-        x_offset = OFFSET + THICCNESS;
-        y_offset = OFFSET + THICCNESS + INNER_HEIGHT;
-    }
+	    float x_offset = 0;
+	    float y_offset = 0;
 
-    float x_low = STEP * ((int)(ex - x_offset - GAP) / STEP) + x_offset + GAP;
-    float y_low = STEP * ((int)(ey - y_offset - GAP) / STEP) + y_offset + GAP;
-    
-    float x_high = x_low + STEP;
-    float y_high = y_low + STEP;
+	    if (ex < OFFSET + THICCNESS) {
 
-    coords.points[0] = (Vector2){x_low,  y_low};
-    coords.points[1] = (Vector2){x_low,  y_high};
-    coords.points[2] = (Vector2){x_high, y_high};
-    coords.points[3] = (Vector2){x_high, y_low};
-    
-    return coords;
+	        x_offset = OFFSET;
+	        y_offset = OFFSET;
+	    } 
+	    else if (ex > OFFSET + THICCNESS + INNER_WIDTH) {
+
+	        x_offset = OFFSET + THICCNESS + INNER_WIDTH;
+	        y_offset = OFFSET;
+	    } 
+	    else if (ey < OFFSET + THICCNESS) {
+	 
+	        x_offset = OFFSET + THICCNESS;
+	        y_offset = OFFSET;
+	    } 
+	    else {
+	        x_offset = OFFSET + THICCNESS;
+	        y_offset = OFFSET + THICCNESS + INNER_HEIGHT;
+	    }
+
+	    float x_low = STEP * ((int)(ex - x_offset - GAP) / STEP) + x_offset + GAP;
+	    float y_low = STEP * ((int)(ey - y_offset - GAP) / STEP) + y_offset + GAP;
+	    
+	    float x_high = x_low + STEP;
+	    float y_high = y_low + STEP;
+
+	    coords.points[0] = (Vector2){x_low,  y_low};
+	    coords.points[1] = (Vector2){x_low,  y_high};
+	    coords.points[2] = (Vector2){x_high, y_high};
+	    coords.points[3] = (Vector2){x_high, y_low};
+	    
+	    return coords;
+	    
+	}
 }
 
-Vector2 FindCollidingCu(int ex, int ey) {
+Vector2 FindCollidedCu(int i) {
 
+	float ex = e[i].x;
+	float ey = e[i].y;
+	float vx = v[i].x;
+	float vy = v[i].y;
+	
     struct NearbyAtoms nearby = NearestCu(ex, ey);
 
-    for (int i=0; i<4; i++) {
+    for (int j=0; j<4; j++) {
     
-        int cx = (int)nearby.points[i].x;
-        int cy = (int)nearby.points[i].y;
+        int cx = (int)nearby.points[j].x;
+        int cy = (int)nearby.points[j].y;
 
-        if (ambm_dist(ex, ey, cx, cy) <= (R_CU + R_E)) {
+        if (ambm_dist(ex, ey, cx, cy) <= R_CU + R_E) {
         	collided_with_cu = 1;
-            return nearby.points[i]; 
+            return nearby.points[j]; 
+        }
+
+        else if (ambm_dist(ex+vx*GetFrameTime(), ey+vy*GetFrameTime(), cx, cy) <= R_E + R_CU) {
+        	colliding_with_cu = 1;
         }
     }
-    
-    collided_with_cu = 0;
     return (Vector2){-1.0f, -1.0f};
 }
 
-void CheckCollisionWithWire(int ex, int ey) {
 
-    if ((ex >= OFFSET + THICCNESS - R_E) && (ex <= 1920 - (THICCNESS + OFFSET) + R_E) && (ey >= OFFSET + THICCNESS - R_E) && (ey <= 1080 - (OFFSET + THICCNESS) + R_E)) {
-        collided_with_inner_wire = 1;
-        collided_with_outer_wire = 0;
+void CheckFutureWireCollision(int ex, int ey) {
+	
+
+    if ((ex >= OFFSET + THICCNESS - R_E) && 
+    	(ex <= 1920 - (THICCNESS + OFFSET) + R_E) && 
+    	(ey >= OFFSET + THICCNESS - R_E) && 
+    	(ey <= 1080 - (OFFSET + THICCNESS) + R_E)) {
+    	
+        colliding_with_inner_wire = 1;
+        colliding_with_outer_wire = 0;
     }
 
-    else if ((ex <= OFFSET + R_E) || (ex >= 1920 - OFFSET - R_E) || (ey <= OFFSET + R_E) || (ey >= 1080 - OFFSET - R_E)) {
-        collided_with_outer_wire = 1;
-        collided_with_inner_wire = 0;
+   else if ((ex <= OFFSET + R_E) || 
+    		(ex >= 1920 - OFFSET - R_E) || 
+    		(ey <= OFFSET + R_E) || 
+    		(ey >= 1080 - OFFSET - R_E)) {
+    		
+        colliding_with_inner_wire = 0;
+        colliding_with_outer_wire = 1;
     }
+    
     else {
-        collided_with_inner_wire = 0;
-        collided_with_outer_wire = 0;
+        colliding_with_inner_wire = 0;
+        colliding_with_outer_wire = 0;
     }
 }
 
 void UpdateKinematics(int i) {
 
-	Vector2 CollidingCu;
+	Vector2 collidedCu;
 	Vector2 norm;
+	float dt = GetFrameTime();
 	
-	float vx,vy;
+	float vx = v[i].x;
+	float vy = v[i].y;
+	
 	float mag;
 		
-	int ex = (int) e[i].x;
-	int ey = (int) e[i].y;
+	float ex = e[i].x;
+	float ey =  e[i].y;
 
-	CheckCollisionWithWire(ex,ey);
-	
-	CollidingCu = FindCollidingCu(ex,ey);
+	float fex = ex + v[i].x*dt; //future ex
+	float fey = e[i].y + v[i].y*dt; // future ey
 
-	if (collided_with_cu == 1 || collided_with_inner_wire ==1 || collided_with_outer_wire == 1) {
+	CheckFutureWireCollision(fex,fey);
+	collidedCu = FindCollidedCu(i);
+
 	
-		if (collided_with_cu) {
-		
-				norm.x = ex - CollidingCu.x;
-				norm.y = ey - CollidingCu.y;
-				
-				mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
-				
+	if (collided_with_cu && collidedCu.x != -1) {
+	
+			norm.x = ex - collidedCu.x;
+			norm.y = ey - collidedCu.y;
+			
+			mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
+			
+			norm.x /= mag;
+			norm.y /= mag;
+
+			mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
+			
+			if (mag==0) {
+				e[i].x += 1;
+				norm.x = (float)(ex - collidedCu.x);
+				norm.y = (float)(ey - collidedCu.y);
+
+				mag = fabs(sqrt(pow(norm.x,2) + pow(norm.y,2)));
+
 				norm.x /= mag;
 				norm.y /= mag;
 				
-		}
-		
-		if (collided_with_inner_wire) {
-
-			if ((ex>OFFSET)&&(ex<OFFSET + THICCNESS)) {
-			
-				// e is in left
-				norm.y = 0;
-				norm.x = -1;
+				v[i].x -= 2*(vx*norm.x + vy*norm.y)*norm.x;
+				v[i].y -= 2*(vx*norm.x + vy*norm.y)*norm.y;
 				
-			}
-
-			else if ((ex>1920 - OFFSET - THICCNESS)&&(ex<1920-OFFSET)) {
-				// e is in right
-
-				norm.y = 0;
-				norm.x = 1;
-			}
-
-			else if ((ey>OFFSET)&&(ey<OFFSET + THICCNESS)) {
-				// e in top
-				norm.x = 0;
-				norm.y = -1;
-			}
-
-			else {
-				// e in bottom
-				norm.x = 0;
-				norm.y = 1;
+			} else {
+			
+				v[i].x -= 2*(vx*norm.x + vy*norm.y)*norm.x;
+				v[i].y -= 2*(vx*norm.x + vy*norm.y)*norm.y;
 			}
 			
-		}
-
-		else if (collided_with_outer_wire) {
-		
-				if ((ex>OFFSET)&&(ex<OFFSET + THICCNESS)) {
-					// e is in left
-					norm.y = 0;
-					norm.x = 1;
-						
-				}
-		
-				else if ((ex>1920 - OFFSET - THICCNESS)&&(ex<1920-OFFSET)) {
-					// e is in right
-		
-					norm.y = 0;
-					norm.x = -1;
-				}
-		
-				else if ((ey>OFFSET)&&(ey<OFFSET + THICCNESS)) {
-					// e in top
-					norm.x = 0;
-					norm.y = -1;
-				}
-		
-				else {
-					// e in bottom
-					norm.x = 0;
-					norm.y = 1;
-				}
-			}
-			
-		mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
-
-		if (mag==0) {
-			e[i].x += 1;
-			norm.x = (float)(ex - CollidingCu.x);
-			norm.y = (float)(ey - CollidingCu.y);
-
-			mag = fabs(sqrt(pow(norm.x,2) + pow(norm.y,2)));
-
-			norm.x /= mag;
-			norm.y /= mag;
-		}
-		
-		vx = v[i].x;
-		vy = v[i].y;
+	}
 	
-		v[i].x = vx - 2*(vx*norm.x + vy*norm.y)*norm.x;
-		v[i].y = vy - 2*(vx*norm.x + vy*norm.y)*norm.y;
-		
-	}	
+	if (colliding_with_inner_wire) {
+	    
+	    float x_wall = (vx > 0) ? (OFFSET + THICCNESS) : (1920 - OFFSET - THICCNESS);
+	    float y_wall = (vy > 0) ? (OFFSET + THICCNESS) : (1080 - OFFSET - THICCNESS);
+	
+	    
+	    float tx = (vx != 0) ? (x_wall - ex) / vx : INFINITY;
+	    float ty = (vy != 0) ? (y_wall - ey) / vy : INFINITY;
+	
+	   
+	    if (fabs(tx) < fabs(ty)) {
+	        norm.x = (vx > 0) ? -1.0f : 1.0f;
+	        norm.y = 0.0f;
+	    } else {
+	        norm.x = 0.0f;
+	        norm.y = (vy > 0) ? -1.0f : 1.0f;
+	    }
+	
+	   
+	    v[i].x -= 2 * (vx * norm.x + vy * norm.y) * norm.x;
+	    v[i].y -= 2 * (vx * norm.x + vy * norm.y) * norm.y;
+	}
+
+	else if (colliding_with_outer_wire) {
+	
+		float x_wall = (vx > 0) ? (1920-OFFSET) : (OFFSET);
+	    float y_wall = (vy > 0) ? (1080 - OFFSET) : (OFFSET);
+	
+	    
+	    float tx = (vx != 0) ? (x_wall - ex) / vx : INFINITY;
+	    float ty = (vy != 0) ? (y_wall - ey) / vy : INFINITY;
+	
+	   
+	    if (fabs(tx) < fabs(ty)) {
+	        norm.x = (vx > 0) ? -1.0f : 1.0f;
+	        norm.y = 0.0f;
+	    } else {
+	        norm.x = 0.0f;
+	        norm.y = (vy > 0) ? -1.0f : 1.0f;
+	    }			
+				
+		v[i].x -= 2*(vx*norm.x + vy*norm.y)*norm.x;
+		v[i].y -= 2*(vx*norm.x + vy*norm.y)*norm.y;
+	}
 
 	if (ex>0 && ex < 1920 && ey > 0 && ey <1080) {
 	
-		a[i].x = E_field*E[(int)e[i].y][(int)e[i].x].x;
-		a[i].y = E_field*E[(int)e[i].y][(int)e[i].x].y;
+		a[i].x = E[(int)e[i].y][(int)e[i].x].x;
+		a[i].y = E[(int)e[i].y][(int)e[i].x].y;
 		
-		v[i].x += a[i].x*GetFrameTime();
-		v[i].y += a[i].y*GetFrameTime();
+		v[i].x += a[i].x*dt;
+		v[i].y += a[i].y*dt;
 			
-		e[i].x += v[i].x*GetFrameTime();
-		e[i].y += v[i].y*GetFrameTime();
+		e[i].x += v[i].x*dt;
+		e[i].y += v[i].y*dt;
 	}
 
 	collided_with_cu = 0;
-	collided_with_inner_wire = 0; 
-	collided_with_outer_wire = 0;		
-		
-	
+
+	colliding_with_cu = 0;
+	colliding_with_inner_wire = 0; 
+	colliding_with_outer_wire = 0;		
 }
 
 //draw the copper atoms
@@ -460,10 +490,13 @@ int main(void) {
     while(!WindowShouldClose()) {
 
     	for (int i=0;i<N_E;i++) {
-    		UpdateKinematics(i);	
+   	
+    		UpdateKinematics(i);
+    		
 		}
 		
         BeginDrawing();
+
         ClearBackground(BLACK);
 
         DrawRectangleLines(OFFSET, OFFSET, OUTER_WIDTH, OUTER_HEIGHT, WHITE);
@@ -473,7 +506,7 @@ int main(void) {
         Draw_e(); // draw electrons
         
         DrawRectangleRec(battery,WHITE); //draw battery
-		    DrawText("battery",textpos.x, textpos.y, 65.0f,BLACK);
+		DrawText("battery",textpos.x, textpos.y, 65.0f,BLACK);
         EndDrawing();
  
     }
