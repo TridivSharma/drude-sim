@@ -179,12 +179,7 @@ what we instead will do is to generate the positions from the electron position 
 
 So we have equations of the centers, we need some way to find which of those points lie within the octogonal_dist region.
 
-Can't think of anything clever aaghhhhhh. Okay we just brute force, we'll construct some square matrix centered at {e[i].x, e[i].y} this matrix
-will be like a sort of lattice of coordinates such that lattice[i][j+1], lattice[i+1][j], represent coords at some distance from each other,
-which will not be a unit/1px, it will be some bigger number. We check if coord = any Cu center coord by using the arithmetic progression formula 
-that we'll cook up, if matches then we know we have to check for a collision via octagonal_dist.
-
-OR hm, if we look at bottom:
+hm, if we look at bottom:
 
 bottom[i][j].x = 228 + 20*j = 8 mod 20
 bottom[i][j].y = 868 + 20*j also 8 mod 20
@@ -193,7 +188,7 @@ So if we are at {ex, ey}, we just want to find the nearest {x,y} such that {x,y}
 {ex,ey} mod 20, we'll get some numbers that will be either more or less than 8, I think we just go for the 4 nearest {x,y} such that they
  are both 8 mod 20.
 
-We get those by either adding or subtracting from (ex,ey) until we reach 8 mod 20, oh actually I think we only just need to calculate one of these.
+We get those by either adding or subtracting from (ex,ey) until we reach 8 mod 20.
 */
 
 struct NearbyAtoms {
