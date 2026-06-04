@@ -13,6 +13,7 @@
 #define THICCNESS 120
 #define STEP (2*R_CU + GAP) // 20
 #define D_CU (2*R_CU) // 12
+#define energy_loss_frac 0.3
 
 // screen stuff, assuming 1920 x 1080
 #define OUTER_WIDTH 1720 
@@ -43,7 +44,7 @@ Rectangle inner_wire = {OFFSET + THICCNESS, OFFSET + THICCNESS, INNER_WIDTH, INN
 //E field
 
 Vector2 E[1080][1920] = {0};
-#define E_field 25
+#define E_field 50
 
 // Initialize
 
@@ -160,6 +161,9 @@ int colliding_with_cu = 0;
 int colliding_with_inner_wire = 0;
 int colliding_with_outer_wire = 0;
 
+int collided_with_inner_wire = 0;
+int collided_with_outer_wire = 0;
+
 double ambm_dist(int ex, int ey, int cu_x, int cu_y) {		// alpha max beta min dist trick
 
 	float alpha = 1.1f;
@@ -266,6 +270,9 @@ Vector2 FindCollidedCu(int i) {
 	float vx = v[i].x;
 	float vy = v[i].y;
 	
+	ex += vx*GetFrameTime();
+	ey += vy*GetFrameTime();
+	
     struct NearbyAtoms nearby = NearestCu(ex, ey);
 
     for (int j=0; j<4; j++) {
@@ -286,7 +293,7 @@ Vector2 FindCollidedCu(int i) {
 }
 
 
-void CheckFutureWireCollision(int ex, int ey) {
+void CheckFutureWireCollision(float ex, float ey) {
 	
 
     if ((ex >= OFFSET + THICCNESS - R_E) && 
@@ -324,11 +331,11 @@ void UpdateKinematics(int i) {
 	
 	float mag;
 		
-	float ex = e[i].x;
-	float ey =  e[i].y;
+	int ex = e[i].x;
+	int ey =  e[i].y;
 
-	float fex = ex + v[i].x*dt; //future ex
-	float fey = e[i].y + v[i].y*dt; // future ey
+	float fex = ex + vx*dt; //future ex
+	float fey = e[i].y + vy*dt; // future ey
 
 	CheckFutureWireCollision(fex,fey);
 	collidedCu = FindCollidedCu(i);
@@ -339,15 +346,11 @@ void UpdateKinematics(int i) {
 			norm.x = ex - collidedCu.x;
 			norm.y = ey - collidedCu.y;
 			
-			mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
-			
-			norm.x /= mag;
-			norm.y /= mag;
-
-			mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
+			mag = norm.x*norm.x + norm.y*norm.y;
 			
 			if (mag==0) {
-				e[i].x += 1;
+			
+				ex += (vx>0)? R_CU:-R_CU;
 				norm.x = (float)(ex - collidedCu.x);
 				norm.y = (float)(ey - collidedCu.y);
 
@@ -360,11 +363,15 @@ void UpdateKinematics(int i) {
 				v[i].y -= 2*(vx*norm.x + vy*norm.y)*norm.y;
 				
 			} else {
+
+				mag = fabs(sqrt(mag));
+				
+				norm.x /= mag;
+				norm.y /= mag;
 			
-				v[i].x -= 2*(vx*norm.x + vy*norm.y)*norm.x;
-				v[i].y -= 2*(vx*norm.x + vy*norm.y)*norm.y;
-			}
-			
+				v[i].x -= energy_loss_frac*2*(vx*norm.x + vy*norm.y)*norm.x;
+				v[i].y -= energy_loss_frac*2*(vx*norm.x + vy*norm.y)*norm.y;
+			}						
 	}
 	
 	if (colliding_with_inner_wire) {
@@ -378,13 +385,18 @@ void UpdateKinematics(int i) {
 	
 	   
 	    if (fabs(tx) < fabs(ty)) {
+	    
 	        norm.x = (vx > 0) ? -1.0f : 1.0f;
 	        norm.y = 0.0f;
+
+	        e[i].x = (vx>0) ? x_wall - 2*R_E : x_wall + 2*R_E;
+	        
 	    } else {
 	        norm.x = 0.0f;
 	        norm.y = (vy > 0) ? -1.0f : 1.0f;
+
+	        e[i].y = (vy>0) ? y_wall - 2*R_E : y_wall + 2*R_E;
 	    }
-	
 	   
 	    v[i].x -= 2 * (vx * norm.x + vy * norm.y) * norm.x;
 	    v[i].y -= 2 * (vx * norm.x + vy * norm.y) * norm.y;
@@ -401,11 +413,17 @@ void UpdateKinematics(int i) {
 	
 	   
 	    if (fabs(tx) < fabs(ty)) {
+	    
 	        norm.x = (vx > 0) ? -1.0f : 1.0f;
 	        norm.y = 0.0f;
+
+			e[i].x = (vx>0) ? x_wall - 2*R_E : x_wall + 2*R_E;
+	        	
 	    } else {
 	        norm.x = 0.0f;
 	        norm.y = (vy > 0) ? -1.0f : 1.0f;
+	        
+	        e[i].y = (vy>0) ? y_wall - 2*R_E : y_wall + 2*R_E;
 	    }			
 				
 		v[i].x -= 2*(vx*norm.x + vy*norm.y)*norm.x;
@@ -419,6 +437,7 @@ void UpdateKinematics(int i) {
 		
 		v[i].x += a[i].x*dt;
 		v[i].y += a[i].y*dt;
+		
 			
 		e[i].x += v[i].x*dt;
 		e[i].y += v[i].y*dt;
@@ -502,8 +521,8 @@ int main(void) {
         DrawRectangleLines(OFFSET, OFFSET, OUTER_WIDTH, OUTER_HEIGHT, WHITE);
         DrawRectangleLines(OFFSET+THICCNESS, OFFSET+THICCNESS, INNER_WIDTH, INNER_HEIGHT, WHITE);
 
-        Draw_Cu(); // Draw copper atoms
-        Draw_e(); // draw electrons
+   	    Draw_Cu(); // Draw copper atoms
+   	    Draw_e(); // draw electrons
         
         DrawRectangleRec(battery,WHITE); //draw battery
 		DrawText("battery",textpos.x, textpos.y, 65.0f,BLACK);
