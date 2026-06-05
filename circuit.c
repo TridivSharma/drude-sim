@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 // wire stuff
-#define N_E 2000
+#define N_E 4000
 #define V 10
 #define R_CU 6
 #define R_E 2
@@ -13,7 +13,7 @@
 #define THICCNESS 120
 #define STEP (2*R_CU + GAP) // 20
 #define D_CU (2*R_CU) // 12
-#define energy_loss_frac 0.3
+#define energy_loss_frac 0.5
 
 // screen stuff, assuming 1920 x 1080
 #define OUTER_WIDTH 1720 
@@ -121,17 +121,17 @@ Superimposed on this is the electric field due to all the electrons, which ywoul
 
 void Compute_E() {
 
-	for (int tbx=0;tbx<INNER_WIDTH;tbx++) {
+	for (int tbx=0;tbx<OUTER_WIDTH;tbx++) {
 
 		for (int tby=0; tby<THICCNESS; tby++) {
 
 			//top
-			E[OFFSET + tby][OFFSET + THICCNESS + tbx].x -= E_field;
-			//E[OFFSET + tby][OFFSET + THICCNESS + tbx].y += 0.2*(tby - THICCNESS/2);
-
+			E[OFFSET + tby][OFFSET + tbx].x -= E_field;
+			E[OFFSET+tby][OFFSET+tbx].y = (tby<=2*R_CU+GAP && tby >=THICCNESS - 2*R_CU+GAP) ? E_field*(THICCNESS/2 - tby) : -(E_field*(tby - THICCNESS/2)/500);
+			
 			//bottom
-			E[1080 - OFFSET - THICCNESS + tby][OFFSET + THICCNESS + tbx].x += E_field;
-			//E[OFFSET + THICCNESS + INNER_HEIGHT + tby][OFFSET + THICCNESS + tbx].y = 0.2*(tby - THICCNESS/2);		
+			E[1080 - OFFSET - THICCNESS + tby][OFFSET + tbx].x += E_field;
+			E[1080-OFFSET-THICCNESS+tby][OFFSET+tbx].y = (tby<=2*R_CU+GAP && tby >=THICCNESS - 2*R_CU+GAP) ? E_field*(THICCNESS/2 - tby) : -(E_field*(tby - THICCNESS/2)/500);
 		}
 	}
 
@@ -140,11 +140,11 @@ void Compute_E() {
 		for (int lry=0; lry<OUTER_HEIGHT; lry++) {
 
 			// left
-			//E[OFFSET + THICCNESS + lry][OFFSET + lrx].x += 0.2*(lrx - THICCNESS/2);
+			E[OFFSET+lry][OFFSET+lrx].x -= (lrx<=2*R_CU+GAP && lrx >=THICCNESS - 2*R_CU+GAP) ? E_field*(THICCNESS/2 - lrx)/1000 : -(E_field*(lrx - THICCNESS/2)/500);
 			E[OFFSET + lry][OFFSET + lrx].y += E_field;
 
 			// right
-			//E[OFFSET + THICCNESS + lry][OFFSET + THICCNESS + INNER_WIDTH + lrx].x = 0.2*(lrx - THICCNESS/2);
+			E[OFFSET+lry][1920-THICCNESS-OFFSET+lrx].x -= (lrx<=2*R_CU+GAP && lrx >=THICCNESS - 2*R_CU+GAP) ? E_field*(THICCNESS/2 - lrx)/1000 : -(E_field*(lrx - THICCNESS/2)/500);
 			E[OFFSET + lry][1920 - OFFSET - THICCNESS + lrx].y -= E_field;		
 		}
 	}	
@@ -218,8 +218,7 @@ struct NearbyAtoms NearestCu(int ex, int ey) {
 			coords.points[j] = (Vector2){-1.0f,-1.0f};
 		}
 
-		return coords;
-		
+		return coords;	
 	}
 	
 	else {
@@ -351,10 +350,11 @@ void UpdateKinematics(int i) {
 			if (mag==0) {
 			
 				ex += (vx>0)? R_CU:-R_CU;
+				ey += (vy>0)? -R_CU:R_CU;
 				norm.x = (float)(ex - collidedCu.x);
 				norm.y = (float)(ey - collidedCu.y);
 
-				mag = fabs(sqrt(pow(norm.x,2) + pow(norm.y,2)));
+				mag = fabs(sqrt(norm.x*norm.x + norm.y*norm.y));
 
 				norm.x /= mag;
 				norm.y /= mag;
