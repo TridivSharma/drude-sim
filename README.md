@@ -72,7 +72,7 @@ There is a constant electric field in each branch of the wire, collisions with c
 
 | Macro | Default | Meaning |
 |---|---|---|
-| `N_E` | 2000 | Number of electrons |
+| `N_E` | 4000 | Number of electrons |
 | `V` | 10 | Initial electron speed |
 | `R_CU` | 6 | Radius of copper atoms (px) |
 | `R_E` | 2 | Radius of electrons (px) |
