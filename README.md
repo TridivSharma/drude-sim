@@ -1,6 +1,6 @@
 # drude-sim
 
-A real-time simulation of how DC circuits work — electrons bouncing through a copper lattice, guided by an electric field, visualized using [raylib](https://www.raylib.com/).
+A simulation of how DC circuits work, using [raylib](https://www.raylib.com/).
 
 <img width="1872" height="1009" alt="image" src="https://github.com/user-attachments/assets/75868202-7298-47fe-aa81-298006198456" />
 
@@ -66,6 +66,7 @@ A lattice of stationary copper atoms is drawn, electrons are spawned at random p
 
 There is a constant electric field in each branch of the wire, collisions with copper atoms (which are determined not using squared distance but the alpha max beta min algorithm for speed) have energy loss whereas collisions with the wire boundary are elastic.
 
+Also note that there is no multithreading or gpu usage in here for optimization, this is because I don't know how to do it (and because I wanted to see how fast it could run without those things) but I think I did optimize whatever I could with.
 ---
 
 ## Configuration (in `circuit.c`)
@@ -82,14 +83,3 @@ There is a constant electric field in each branch of the wire, collisions with c
 | `energy_loss_frac` | 0.5 | Really this is momentum loss but yeah |
 
 ---
-
-## Files
-
-```
-drude-sim/
-├── circuit.c      # Main simulation source
-├── main.tex       # LaTeX write-up explaining the physics
-├── 1.png          # Screenshot
-├── 2.png          # Screenshot
-└── README.md
-```
